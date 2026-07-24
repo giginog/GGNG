@@ -1,10 +1,62 @@
 <%*
+const { Modal, Setting } = require("obsidian");
+
+/* Modale de sélection date + heure façon "metabind dateTime" (calendrier + horloge natifs) */
+class DateTimeModal extends Modal {
+	constructor(app, defaultValue) {
+		super(app);
+		this.defaultValue = defaultValue;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		this.setTitle("Date et heure de l'acte");
+
+		new Setting(contentEl)
+			.setName("Date et heure")
+			.addText((text) => {
+				text.inputEl.type = "datetime-local";
+				text.inputEl.value = this.defaultValue;
+				text.inputEl.style.width = "100%";
+				this.inputEl = text.inputEl;
+				text.inputEl.addEventListener("keydown", (evt) => {
+					if (evt.key === "Enter") {
+						evt.preventDefault();
+						this.close();
+					}
+				});
+			});
+
+		new Setting(contentEl).addButton((btn) =>
+			btn.setButtonText("Valider").setCta().onClick(() => this.close())
+		);
+
+		window.setTimeout(() => this.inputEl?.focus(), 0);
+	}
+
+	onClose() {
+		const value = this.inputEl?.value || this.defaultValue;
+		this.contentEl.empty();
+		this.onSubmit?.(value);
+	}
+}
+
+function promptDateTime(app, defaultValue) {
+	return new Promise((resolve) => {
+		const modal = new DateTimeModal(app, defaultValue);
+		modal.onSubmit = resolve;
+		modal.open();
+	});
+}
+
 const defaultDateTime = tp.date.now("YYYY-MM-DD HH:mm");
-const dateHeure = await tp.system.prompt("Date et heure", defaultDateTime);
+const pickedDateTime = await promptDateTime(app, defaultDateTime.replace(" ", "T"));
+const dateHeure = pickedDateTime.replace("T", " ");
+
 const personnes = ["Guilhem", "Agnès", "🌱Kauri", "🪽Manaia"];
 const personne = await tp.system.suggester(personnes, personnes, false, "Personne");
 
-const m = window.moment(dateHeure ?? defaultDateTime, "YYYY-MM-DD HH:mm").locale("fr");
+const m = window.moment(dateHeure, "YYYY-MM-DD HH:mm").locale("fr");
 const titre = `Acte du ${m.format("D MMM YYYY")} à ${m.format("HH[h]mm")}`;
 try { await tp.file.rename(titre); } catch (e) {}
 
@@ -15,7 +67,7 @@ let temperature = "NULL";
 let traitement = "NULL";
 let niveauDouleur = "NULL";
 let BlessureEvenement = "NULL";
-const dateJour = String(dateHeure ?? defaultDateTime).split(" ")[0];
+const dateJour = dateHeure.split(" ")[0];
 
 if (typeActe === "Prise de température") {
 	niveauDouleur = await tp.system.prompt("Niveau de douleur (sur 10)", "");
